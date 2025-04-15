@@ -1,14 +1,14 @@
 import logging
 from mcp.server.fastmcp import FastMCP
 from typing import List, Dict, Any, Optional
-from utils.todo_manager import (
-    get_todos as tm_todo_list,
-    add_todo as tm_todo_create,
-    toggle_todo as tm_todo_toggle_completion,
-    delete_todo as tm_todo_delete,
-    get_subtree as tm_todo_get_with_subtasks,
-    update_subtree as tm_todo_update,
-    move_subtree as tm_todo_move,
+from utils.task_manager import (
+    get_tasks as tm_task_list,
+    add_task as tm_task_create,
+    toggle_task as tm_task_toggle_completion,
+    delete_task as tm_task_delete,
+    get_subtree as tm_task_get_with_subtasks,
+    update_subtree as tm_task_update,
+    move_subtree as tm_task_move,
     create_context as tm_context_create,
     delete_context as tm_context_delete,
     get_contexts as tm_context_list,
@@ -16,18 +16,18 @@ from utils.todo_manager import (
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s %(levelname)s %(name)s %(message)s')
-logger = logging.getLogger("todo_server")
+logger = logging.getLogger("task_server")
 
-mcp = FastMCP("todo_server")
+mcp = FastMCP("task_server")
 
 # Context Management
 @mcp.tool()
 def context_create(name: str, description: Optional[str] = None) -> Dict[str, Any]:
     """
-    Create a new context session for organizing todo items.
+    Create a new context session for organizing task items.
     
-    A context represents a separate workspace or project area for todos. 
-    Each context has its own set of todos that can be managed independently.
+    A context represents a separate workspace or project area for tasks. 
+    Each context has its own set of tasks that can be managed independently.
     
     Args:
         name: The name of the context (e.g., "Work", "Personal", "Project X")
@@ -52,7 +52,7 @@ def context_create(name: str, description: Optional[str] = None) -> Dict[str, An
 @mcp.tool()
 def context_delete(context_id: str) -> Dict[str, Any]:
     """
-    Delete a context and all its associated todos permanently.
+    Delete a context and all its associated tasks permanently.
     
     This operation cannot be undone. The default context cannot be deleted.
     
@@ -73,15 +73,15 @@ def context_delete(context_id: str) -> Dict[str, Any]:
         logger.exception("Error in context_delete")
         return {"error": str(e)}
 
-@mcp.tool()
+@mcp.resource("task-server://contexts")
 def context_list() -> List[Dict[str, Any]]:
     """
     List all available contexts in the system.
     
-    IMPORTANT: Always call this tool first before interacting with todos. This ensures you know which contexts are available and can select the appropriate one for further actions.
+    IMPORTANT: Always call this tool first before interacting with tasks. This ensures you know which contexts are available and can select the appropriate one for further actions.
     
     Returns a list of all contexts, including the default context which is always present.
-    Each context contains todos that can be accessed via todo_list().
+    Each context contains tasks that can be accessed via task_list().
     
     Returns:
         List of context dictionaries, each containing:
@@ -112,37 +112,37 @@ def context_list() -> List[Dict[str, Any]]:
         logger.exception("Error in context_list")
         return []
 
-# Todo CRUD Operations
+# Task CRUD Operations
 @mcp.tool()
-def todo_create(title: str, description: Optional[str] = None, deadline: Optional[str] = None, 
+def task_create(title: str, description: Optional[str] = None, deadline: Optional[str] = None, 
                 parent_id: Optional[int] = None, context_id: Optional[str] = None, how_to_guide: Optional[str] = None) -> Dict[str, Any]:
     """
-    Create a new todo item within a specific context.
+    Create a new task ("todo" item) within a specific context.
     
-    The description should be short and to the point. Use how_to_guide for detailed, step-by-step instructions or explanations in markdown format. Do not repeat information between the description, how_to_guide, and subtasks. If you provide a how_to_guide, do not create subtasks for the same steps covered in the guide—choose one approach for detailed steps. Only apply a how_to_guide to edge (leaf) todos that do not have subtasks; parent todos with subtasks should not have a how_to_guide.
+    A task is essentially a "todo" item—these terms are interchangeable in this MCP server. The description should be short and to the point. Use how_to_guide for detailed, step-by-step instructions or explanations in markdown format. Do not repeat information between the description, how_to_guide, and subtasks. If you provide a how_to_guide, do not create subtasks for the same steps covered in the guide—choose one approach for detailed steps. Only apply a how_to_guide to edge (leaf) tasks that do not have subtasks; parent tasks with subtasks should not have a how_to_guide.
     The how_to_guide should include enough information to pickup the task without any additional context (so should include all the context necessary)
     
     Args:
-        title: The title/name of the todo item (required)
-        description: Short summary of what the todo involves (keep it brief)
+        title: The title/name of the task ("todo" item) (required)
+        description: Short summary of what the task involves (keep it brief)
         deadline: Optional deadline in ISO format (e.g., "2025-04-30T23:59:59")
-        parent_id: If provided, creates this todo as a subtask of the todo with this ID
-        context_id: The context to add this todo to (uses default context if not specified)
-        how_to_guide: Markdown-formatted detailed instructions for the task (only for leaf todos)
+        parent_id: If provided, creates this task as a subtask of the task with this ID
+        context_id: The context to add this task to (uses default context if not specified)
+        how_to_guide: Markdown-formatted detailed instructions for the task (only for leaf tasks)
     
     Returns:
-        Dict containing the newly created todo with fields:
+        Dict containing the newly created task ("todo" item) with fields:
         - id: Unique numeric identifier
         - title: The title provided
         - description: The description provided
         - deadline: The deadline if provided
-        - completed: Always false for new todos
+        - completed: Always false for new tasks
         - created_at: Timestamp when created
         - how_to_guide: The markdown guide if provided
-        - subtasks: Empty list for new todos
+        - subtasks: Empty list for new tasks
     
     Example:
-        todo_create(
+        task_create(
             title="Implement login feature",
             description="Create login page with username/password fields",
             deadline="2025-05-01T17:00:00",
@@ -150,36 +150,36 @@ def todo_create(title: str, description: Optional[str] = None, deadline: Optiona
         )
     """
     try:
-        return tm_todo_create(title, description or "", deadline, parent_id, context_id, how_to_guide or "")
+        return tm_task_create(title, description or "", deadline, parent_id, context_id, how_to_guide or "")
     except Exception as e:
-        logger.exception("Error in todo_create")
+        logger.exception("Error in task_create")
         return {"error": str(e)}
 
 @mcp.tool()
-def todo_update(id: int, title: Optional[str] = None, description: Optional[str] = None, 
+def task_update(id: int, title: Optional[str] = None, description: Optional[str] = None, 
                 deadline: Optional[str] = None, completed: Optional[bool] = None,
                 context_id: Optional[str] = None, how_to_guide: Optional[str] = None) -> Dict[str, Any]:
     """
-    Update a todo's properties while preserving its subtasks structure.
+    Update a task ("todo" item)'s properties while preserving its subtasks structure.
     
-    The description should be short and to the point. Use how_to_guide for detailed, step-by-step instructions or explanations in markdown format. Do not repeat information between the description, how_to_guide, and subtasks. If you provide a how_to_guide, do not create subtasks for the same steps covered in the guide—choose one approach for detailed steps. Only apply a how_to_guide to edge (leaf) todos that do not have subtasks; parent todos with subtasks should not have a how_to_guide.
+    A task is essentially a "todo" item—these terms are interchangeable in this MCP server. The description should be short and to the point. Use how_to_guide for detailed, step-by-step instructions or explanations in markdown format. Do not repeat information between the description, how_to_guide, and subtasks. If you provide a how_to_guide, do not create subtasks for the same steps covered in the guide—choose one approach for detailed steps. Only apply a how_to_guide to edge (leaf) tasks that do not have subtasks; parent tasks with subtasks should not have a how_to_guide.
     
     Args:
-        id: The unique ID of the todo to update (required)
+        id: The unique ID of the task ("todo" item) to update (required)
         title: New title if you want to change it
         description: Short summary (keep it brief)
         deadline: New deadline in ISO format (or null to remove deadline)
         completed: New completion status (True/False)
         context_id: The context to search in (uses default if not specified)
-        how_to_guide: New markdown-formatted detailed instructions for the task (only for leaf todos)
+        how_to_guide: New markdown-formatted detailed instructions for the task (only for leaf tasks)
     
     Returns:
-        Dict containing the updated todo with all fields (including unchanged ones)
-        or an error message if the todo wasn't found:
+        Dict containing the updated task ("todo" item) with all fields (including unchanged ones)
+        or an error message if the task wasn't found:
         - On error: {"error": "Error message"}
     
     Example:
-        todo_update(
+        task_update(
             id=42,
             title="Updated: Implement login feature",
             completed=True,
@@ -187,51 +187,48 @@ def todo_update(id: int, title: Optional[str] = None, description: Optional[str]
         )
     """
     try:
-        return tm_todo_update(id, title, description, deadline, completed, how_to_guide, context_id)
+        return tm_task_update(id, title, description, deadline, completed, how_to_guide, context_id)
     except Exception as e:
-        logger.exception("Error in todo_update")
+        logger.exception("Error in task_update")
         return {"error": str(e)}
 
 @mcp.tool()
-def todo_delete(id: int, context_id: Optional[str] = None) -> Dict[str, Any]:
+def task_delete(id: int, context_id: Optional[str] = None) -> Dict[str, Any]:
     """
-    Delete a todo item and all its subtasks permanently.
+    Delete a task ("todo" item) and all its subtasks permanently.
     
-    This operation cannot be undone. If you delete a todo that has subtasks,
-    all subtasks will also be deleted.
+    A task is essentially a "todo" item—these terms are interchangeable in this MCP server. This operation cannot be undone. If you delete a task that has subtasks, all subtasks will also be deleted.
     
     Args:
-        id: The unique ID of the todo item to delete (required)
+        id: The unique ID of the task ("todo" item) to delete (required)
         context_id: The context to search in (uses default if not specified)
     
     Returns:
         Dict with success or error message:
-        - On success: {"success": True, "message": "Todo 'TITLE' deleted"}
+        - On success: {"success": True, "message": "Task 'TITLE' deleted"}
         - On error: {"error": "Error message"}
     
     Example:
-        todo_delete(id=42)
+        task_delete(id=42)
     """
     try:
-        return tm_todo_delete(id, context_id)
+        return tm_task_delete(id, context_id)
     except Exception as e:
-        logger.exception("Error in todo_delete")
+        logger.exception("Error in task_delete")
         return {"error": str(e)}
 
-@mcp.tool()
-def todo_get(id: int, context_id: Optional[str] = None) -> Dict[str, Any]:
+@mcp.resource("task-server://tasks/{id}")
+def task_get(id: int) -> Dict[str, Any]:
     """
-    Get a specific todo item and its entire subtask hierarchy.
+    Get a specific task ("todo" item) and its entire subtask hierarchy.
     
-    Retrieves comprehensive information about a todo, including its complete
-    subtask tree with all properties of each subtask.
+    A task is essentially a "todo" item—these terms are interchangeable in this MCP server. Retrieves comprehensive information about a task, including its complete subtask tree with all properties of each subtask.
     
     Args:
-        id: The unique ID of the todo to retrieve (required)
-        context_id: The context to search in (uses default if not specified)
+        id: The unique ID of the task ("todo" item) to retrieve (required)
     
     Returns:
-        Complete todo object with all fields and all nested subtasks
+        Complete task ("todo" item) object with all fields and all nested subtasks
         or an error message if not found:
         - On error: {"error": "Error message"}
     
@@ -259,130 +256,95 @@ def todo_get(id: int, context_id: Optional[str] = None) -> Dict[str, Any]:
     }
     """
     try:
-        return tm_todo_get_with_subtasks(id, context_id)
+        return tm_task_get_with_subtasks(id)
     except Exception as e:
-        logger.exception("Error in todo_get")
+        logger.exception("Error in task_get")
         return {"error": str(e)}
 
-@mcp.tool()
-def todo_list(context_id: Optional[str] = None) -> List[Dict[str, Any]]:
+@mcp.resource("task-server://tasks/{context_id}")
+def task_list(context_id: Optional[str] = None) -> List[Dict[str, Any]]:
     """
-    List all top-level todos in a specific context.
+    List all top-level tasks ("todo" items) in a specific context.
     
-    Returns all root-level todos in the specified context (or default context).
-    Each todo includes its full subtask hierarchy.
+    A task is essentially a "todo" item—these terms are interchangeable in this MCP server. Returns all root-level tasks in the specified context (or default context). Each task includes its full subtask hierarchy.
     
     Args:
-        context_id: The context to list todos from (uses default if not specified)
+        context_id: The context to list tasks ("todo" items) from (uses default if not specified)
     
     Returns:
-        List of todo objects, each containing all fields and its subtask hierarchy.
-        Returns an empty list if no todos exist or if the context doesn't exist.
+        List of task ("todo" item) objects, each containing all fields and its subtask hierarchy.
+        Returns an empty list if no tasks exist or if the context doesn't exist.
     
     Example:
-        todo_list(context_id="work-context")
+        task_list(context_id="work-context")
     """
     try:
-        return tm_todo_list(context_id)
+        return tm_task_list(context_id)
     except Exception as e:
-        logger.exception("Error in todo_list")
+        logger.exception("Error in task_list")
         return []
 
-# Todo Specialized Operations
+# Task Specialized Operations
 @mcp.tool()
-def todo_toggle_completion(id: int, recursive: bool = False, context_id: Optional[str] = None) -> Dict[str, Any]:
+def task_toggle_completion(id: int, recursive: bool = False, context_id: Optional[str] = None) -> Dict[str, Any]:
     """
-    Toggle the completed status of a todo item (and optionally all its subtasks).
+    Toggle the completed status of a task item (and optionally all its subtasks).
     
-    Changes a todo's status from incomplete to complete or vice versa.
+    Changes a task's status from incomplete to complete or vice versa.
     If recursive=True, all subtasks will be set to the same status as the parent.
     
     Args:
-        id: The unique ID of the todo item to toggle (required)
+        id: The unique ID of the task item to toggle (required)
         recursive: If True, also toggle all subtasks to match the parent's new status
         context_id: The context to search in (uses default if not specified)
     
     Returns:
-        Dict containing the updated todo with all fields
-        or an error message if the todo wasn't found:
+        Dict containing the updated task with all fields
+        or an error message if the task wasn't found:
         - On error: {"error": "Error message"}
     
     Example:
-        todo_toggle_completion(id=42, recursive=True)
+        task_toggle_completion(id=42, recursive=True)
     """
     try:
-        return tm_todo_toggle_completion(id, recursive, context_id)
+        return tm_task_toggle_completion(id, recursive, context_id)
     except Exception as e:
-        logger.exception("Error in todo_toggle_completion")
+        logger.exception("Error in task_toggle_completion")
         return {"error": str(e)}
 
 @mcp.tool()
-def todo_move(id: int, new_parent_id: Optional[int] = None, 
+def task_move(id: int, new_parent_id: Optional[int] = None, 
               source_context_id: Optional[str] = None, 
               target_context_id: Optional[str] = None) -> Dict[str, Any]:
     """
-    Move a todo and its subtasks to a new parent or to root level, optionally between contexts.
+    Move a task and its subtasks to a new parent or to root level, optionally between contexts.
     
-    This function allows for complex reorganization of the todo hierarchy:
-    - Move a subtask to become a root-level todo
-    - Move a root todo to become a subtask of another todo
+    This function allows for complex reorganization of the task hierarchy:
+    - Move a subtask to become a root-level task
+    - Move a root task to become a subtask of another task
     - Move a subtask to become a subtask of a different parent
-    - Move todos between different contexts
+    - Move tasks between different contexts
     
     Args:
-        id: The unique ID of the todo subtree to move (required)
+        id: The unique ID of the task subtree to move (required)
         new_parent_id: The ID of the new parent, or None to move to root level
         source_context_id: The context to move from (uses default if not specified)
         target_context_id: The context to move to (uses source_context_id if not specified)
     
     Returns:
-        Dict containing the moved todo (with all subtasks)
+        Dict containing the moved task (with all subtasks)
         or an error message if operation failed:
         - On error: {"error": "Error message"}
     
     Constraints:
-    - Cannot move a todo to be its own child
-    - Cannot move a todo to be a child of one of its own descendants
+    - Cannot move a task to be its own child
+    - Cannot move a task to be a child of one of its own descendants
     
     Example:
-        todo_move(id=42, new_parent_id=50, target_context_id="work-context")
+        task_move(id=42, new_parent_id=50, target_context_id="work-context")
     """
     try:
-        return tm_todo_move(id, new_parent_id, source_context_id, target_context_id)
+        return tm_task_move(id, new_parent_id, source_context_id, target_context_id)
     except Exception as e:
-        logger.exception("Error in todo_move")
+        logger.exception("Error in task_move")
         return {"error": str(e)}
-
-# Resources (for RESTful access)
-@mcp.resource("todo-server://contexts")
-def resource_context_list() -> List[Dict[str, Any]]:
-    """
-    Resource: List all available contexts.
-    """
-    try:
-        return tm_context_list()
-    except Exception as e:
-        logger.exception("Error in resource_context_list")
-        return []
-
-@mcp.resource("todo-server://todos/default")
-def resource_default_todo_list() -> List[Dict[str, Any]]:
-    """
-    Resource: List all todos in the default context.
-    """
-    try:
-        return tm_todo_list()
-    except Exception as e:
-        logger.exception("Error in resource_default_todo_list")
-        return []
-
-@mcp.resource("todo-server://todos/{context_id}")
-def resource_context_todo_list(context_id: str) -> List[Dict[str, Any]]:
-    """
-    Resource: List all todos in a specific context.
-    """
-    try:
-        return tm_todo_list(context_id)
-    except Exception as e:
-        logger.exception("Error in resource_context_todo_list")
-        return []

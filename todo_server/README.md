@@ -1,6 +1,6 @@
-# Todo MCP Server
+# Task MCP Server
 
-This is an MCP server implementation for managing todos and contexts, using SQLite and SQLAlchemy for persistent storage.
+This is an MCP server implementation for managing tasks and contexts, using SQLite and SQLAlchemy for persistent storage. Each task represents a high-level item, which may have subtasks or a how-to guide attached.
 
 ## Getting Started
 
@@ -30,15 +30,15 @@ This is an MCP server implementation for managing todos and contexts, using SQLi
 
 1. Build the Docker image:
    ```sh
-   docker build -t todo_server .
+   docker build -t task_server .
    ```
 2. Run the server in a Docker container:
    ```sh
-   docker run -i --rm todo_server
+   docker run -i --rm task_server
    ```
 3. (Optional) To mount your local code for live development and persist the SQLite database:
    ```sh
-   docker run -i --rm --mount type=bind,src=$(pwd),dst=/app todo_server
+   docker run -i --rm --mount type=bind,src=$(pwd),dst=/app task_server
    ```
 
 ## Claude Desktop Server Configuration Example
@@ -47,29 +47,29 @@ To use this server with Claude Desktop, add an entry to your `claude_desktop_con
 
 ### Using Docker
 ```json
-"todo_server": {
+"task_server": {
   "command": "docker",
   "args": [
     "run",
     "-i",
     "--rm",
     "--mount",
-    "type=bind,src=/Users/charlesbethin/Developer/Local/mcp-servers/todo_server,dst=/app",
-    "todo_server"
+    "type=bind,src=/Users/charlesbethin/Developer/Local/mcp-servers/task-management-server,dst=/app",
+    "task_server"
   ]
 }
 ```
-Replace `todo_server` with the name you used when building your Docker image.
+Replace `task_server` with the name you used when building your Docker image.
 
 ### Using mcp install (local Python)
 ```json
-"todo_server": {
+"task_server": {
   "command": "mcp",
   "args": [
     "run",
     "main.py"
   ],
-  "cwd": "/Users/charlesbethin/Developer/Local/mcp-servers/todo_server"
+  "cwd": "/Users/charlesbethin/Developer/Local/mcp-servers/task-management-server"
 }
 ```
 
@@ -78,9 +78,9 @@ Add either (or both) of these entries to your `claude_desktop_config.json` depen
 ## Structure
 - `main.py`: Entry point for the server
 - `server.py`: Register your tools/resources here
-- `utils/`: Business logic and database management modules (e.g., `todo_manager.py`)
+- `utils/`: Business logic and database management modules (e.g., `task_manager.py`)
 - `db.sqlite3`: SQLite database file (auto-created)
-- `todos.json`: (Legacy) JSON file for todos, now replaced by SQLite
+- `tasks.json`: (Legacy) JSON file for tasks, now replaced by SQLite
 
 ---
 Generated on 2025-04-15
