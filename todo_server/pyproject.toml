@@ -1,0 +1,15 @@
+[project]
+name = "todo-server"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "mcp[cli]>=1.6.0",
+    "pandas>=2.2.3",
+    "pyarrow>=19.0.1",
+    "anytree>=2.8.0",
+    "pillow>=11.2.1",
+    "matplotlib>=3.0.0",
+    "networkx>=2.0.0"
+]
