@@ -73,7 +73,7 @@ def context_delete(context_id: str) -> Dict[str, Any]:
         logger.exception("Error in context_delete")
         return {"error": str(e)}
 
-@mcp.resource("task-server://contexts")
+@mcp.tool()
 def context_list() -> List[Dict[str, Any]]:
     """
     List all available contexts in the system.
@@ -117,7 +117,7 @@ def context_list() -> List[Dict[str, Any]]:
 def task_create(title: str, description: Optional[str] = None, deadline: Optional[str] = None, 
                 parent_id: Optional[int] = None, context_id: Optional[str] = None, how_to_guide: Optional[str] = None) -> Dict[str, Any]:
     """
-    Create a new task ("todo" item) within a specific context.
+    Create a new task (aka a "todo" item) within a specific context.
     
     A task is essentially a "todo" item—these terms are interchangeable in this MCP server. The description should be short and to the point. Use how_to_guide for detailed, step-by-step instructions or explanations in markdown format. Do not repeat information between the description, how_to_guide, and subtasks. If you provide a how_to_guide, do not create subtasks for the same steps covered in the guide—choose one approach for detailed steps. Only apply a how_to_guide to edge (leaf) tasks that do not have subtasks; parent tasks with subtasks should not have a how_to_guide.
     The how_to_guide should include enough information to pickup the task without any additional context (so should include all the context necessary)
@@ -217,7 +217,7 @@ def task_delete(id: int, context_id: Optional[str] = None) -> Dict[str, Any]:
         logger.exception("Error in task_delete")
         return {"error": str(e)}
 
-@mcp.resource("task-server://tasks/{id}")
+@mcp.tool()
 def task_get(id: int) -> Dict[str, Any]:
     """
     Get a specific task ("todo" item) and its entire subtask hierarchy.
@@ -261,10 +261,10 @@ def task_get(id: int) -> Dict[str, Any]:
         logger.exception("Error in task_get")
         return {"error": str(e)}
 
-@mcp.resource("task-server://tasks/{context_id}")
+@mcp.tool()
 def task_list(context_id: Optional[str] = None) -> List[Dict[str, Any]]:
     """
-    List all top-level tasks ("todo" items) in a specific context.
+    List all top-level tasks (aka "todo" items) in a specific context.
     
     A task is essentially a "todo" item—these terms are interchangeable in this MCP server. Returns all root-level tasks in the specified context (or default context). Each task includes its full subtask hierarchy.
     
