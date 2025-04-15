@@ -12,7 +12,6 @@ from utils.todo_manager import (
     create_context as tm_context_create,
     delete_context as tm_context_delete,
     get_contexts as tm_context_list,
-    dict_to_tree
 )
 
 # Configure logging
@@ -352,33 +351,6 @@ def todo_move(id: int, new_parent_id: Optional[int] = None,
     except Exception as e:
         logger.exception("Error in todo_move")
         return {"error": str(e)}
-
-from anytree import RenderTree, AsciiStyle
-
-@mcp.tool()
-def context_tree_ascii(context_id: str) -> str:
-    """
-    Return the todo tree for a given context as an ASCII/text tree.
-    Args:
-        context_id: The context to visualize
-    Returns:
-        str: ASCII/text representation of the todo tree
-    """
-    todos = tm_todo_list(context_id)
-    if not todos:
-        return "(No todos in this context)"
-    lines = []
-    from utils.todo_manager import dict_to_tree
-    from anytree import RenderTree, AsciiStyle
-    def ensure_node(todo):
-        if hasattr(todo, 'title') and hasattr(todo, 'id'):
-            return todo
-        return dict_to_tree(todo)
-    for todo in todos:
-        node = ensure_node(todo)
-        for pre, fill, n in RenderTree(node, style=AsciiStyle()):
-            lines.append(f"{pre}{getattr(n, 'title', str(n))} [id={getattr(n, 'id', '?')}]" + (" (✓)" if getattr(n, "completed", False) else ""))
-    return "\n".join(lines)
 
 # Resources (for RESTful access)
 @mcp.resource("todo-server://contexts")

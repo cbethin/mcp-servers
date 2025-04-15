@@ -6,4 +6,3 @@ mcp
 anytree
 matplotlib
 networkx
-# pygraphviz (no longer needed for ASCII tree)
