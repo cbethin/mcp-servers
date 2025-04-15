@@ -5,12 +5,46 @@ from datetime import datetime
 from copy import deepcopy
 import uuid
 from anytree import Node, PreOrderIter
+from sqlalchemy import create_engine, Column, Integer, String, Boolean, DateTime, ForeignKey, Text
+from sqlalchemy.orm import declarative_base, relationship, sessionmaker
 
 # Global data structures
 contexts: List[Dict[str, Any]] = []
 todos_by_context: Dict[str, List[Node]] = {}
 next_id = 1
 default_context_id = "default"
+
+# SQLAlchemy setup
+Base = declarative_base()
+DB_PATH = os.path.join(os.path.dirname(__file__), '..', 'db.sqlite3')
+DB_URL = f'sqlite:///{os.path.abspath(DB_PATH)}'
+engine = create_engine(DB_URL, echo=False, future=True)
+SessionLocal = sessionmaker(bind=engine)
+
+class Context(Base):
+    __tablename__ = 'contexts'
+    id = Column(String, primary_key=True)
+    name = Column(String, nullable=False)
+    description = Column(Text, default="")
+    created_at = Column(DateTime, nullable=False)
+    todos = relationship('Todo', back_populates='context', cascade="all, delete-orphan")
+
+class Todo(Base):
+    __tablename__ = 'todos'
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    title = Column(String, nullable=False)
+    description = Column(Text, default="")
+    deadline = Column(String)
+    completed = Column(Boolean, default=False)
+    created_at = Column(DateTime, nullable=False)
+    how_to_guide = Column(Text, default="")
+    context_id = Column(String, ForeignKey('contexts.id'), nullable=False)
+    parent_id = Column(Integer, ForeignKey('todos.id'), nullable=True)
+    context = relationship('Context', back_populates='todos')
+    subtasks = relationship('Todo', backref='parent', remote_side=[id], cascade="all, delete-orphan", single_parent=True)
+
+# Create tables if they don't exist
+Base.metadata.create_all(engine)
 
 # --- AnyTree Conversion Helpers ---
 def dict_to_tree(todo_dict, parent=None):
@@ -117,41 +151,45 @@ def save_todos():
 
 def create_context(name: str, description: str = "") -> Dict[str, Any]:
     """
-    Create a new context session.
-    
-    Args:
-        name: The name of the context
-        description: Optional description
-        
-    Returns:
-        The newly created context
+    Create a new context session using SQLAlchemy.
     """
-    global contexts, todos_by_context
-    
-    # Generate a unique ID for the context
+    session = SessionLocal()
     context_id = str(uuid.uuid4())
-    
-    new_context = {
-        "id": context_id,
-        "name": name,
-        "description": description,
-        "created_at": datetime.now().isoformat()
+    now = datetime.now()
+    new_context = Context(
+        id=context_id,
+        name=name,
+        description=description,
+        created_at=now
+    )
+    session.add(new_context)
+    session.commit()
+    session.refresh(new_context)
+    session.close()
+    return {
+        "id": new_context.id,
+        "name": new_context.name,
+        "description": new_context.description,
+        "created_at": new_context.created_at.isoformat()
     }
-    
-    contexts.append(new_context)
-    todos_by_context[context_id] = []
-    
-    save_todos()
-    return new_context
 
 def get_contexts() -> List[Dict[str, Any]]:
     """
-    Get all available contexts.
-    
-    Returns:
-        List of all contexts
+    Get all available contexts from the database.
     """
-    return contexts
+    session = SessionLocal()
+    contexts = session.query(Context).all()
+    result = [
+        {
+            "id": c.id,
+            "name": c.name,
+            "description": c.description,
+            "created_at": c.created_at.isoformat()
+        }
+        for c in contexts
+    ]
+    session.close()
+    return result
 
 def delete_context(context_id: str) -> Dict[str, Any]:
     """
@@ -189,47 +227,146 @@ def delete_context(context_id: str) -> Dict[str, Any]:
 
 def add_todo(title: str, description: str = "", deadline: str = None, parent_id: int = None, context_id: str = default_context_id, how_to_guide: str = "") -> Dict[str, Any]:
     """
-    Add a new todo, either as a root todo or as a subtask of another todo.
-    
-    The description should be short and to the point. Use how_to_guide for detailed, step-by-step instructions or explanations in markdown format.
-    
-    Args:
-        title: The title of the todo
-        description: Short summary (keep it brief)
-        deadline: Optional deadline in ISO format
-        parent_id: If provided, adds this todo as a subtask to the todo with this ID
-        context_id: The context this todo belongs to
-        how_to_guide: Optional markdown how-to guide for the todo (use for detailed instructions)
-        
-    Returns:
-        The newly created todo
+    Add a new todo, either as a root todo or as a subtask of another todo, using SQLAlchemy.
     """
-    global todos_by_context, next_id
-    err = get_context_or_error(context_id)
-    if err:
-        return err
-    new_todo = Node(
-        None,
-        id=next_id,
+    session = SessionLocal()
+    now = datetime.now()
+    # Check context exists
+    context = session.query(Context).filter_by(id=context_id).first()
+    if not context:
+        session.close()
+        return {"error": f"Context with ID {context_id} not found"}
+    # If parent_id is provided, check parent exists
+    parent = None
+    if parent_id is not None:
+        parent = session.query(Todo).filter_by(id=parent_id, context_id=context_id).first()
+        if not parent:
+            session.close()
+            return {"error": f"Parent todo with ID {parent_id} not found in context {context_id}"}
+    new_todo = Todo(
         title=title,
         description=description or "",
         deadline=deadline,
         completed=False,
-        created_at=datetime.now().isoformat(),
+        created_at=now,
         how_to_guide=how_to_guide or "",
-        subtasks=[]
+        context_id=context_id,
+        parent_id=parent_id
     )
-    next_id += 1
-    if parent_id is None:
-        todos_by_context[context_id].append(new_todo)
-        save_todos()
-        return tree_to_dict(new_todo)
+    session.add(new_todo)
+    session.commit()
+    session.refresh(new_todo)
+    todo_dict = todo_to_dict(new_todo, session)
+    session.close()
+    return todo_dict
+
+def get_todos(context_id: str = default_context_id) -> List[Dict[str, Any]]:
+    """
+    Get all root todos from a specific context using SQLAlchemy.
+    """
+    session = SessionLocal()
+    todos = session.query(Todo).filter_by(context_id=context_id, parent_id=None).all()
+    result = [todo_to_dict(todo, session) for todo in todos]
+    session.close()
+    return result
+
+def todo_to_dict(todo, session):
+    """
+    Recursively convert a Todo SQLAlchemy object to a dict with subtasks.
+    """
+    return {
+        "id": todo.id,
+        "title": todo.title,
+        "description": todo.description,
+        "deadline": todo.deadline,
+        "completed": todo.completed,
+        "created_at": todo.created_at.isoformat() if todo.created_at else None,
+        "how_to_guide": todo.how_to_guide,
+        "subtasks": [todo_to_dict(sub, session) for sub in session.query(Todo).filter_by(parent_id=todo.id).all()]
+    }
+
+def update_subtree(id: int, title: Optional[str] = None, description: Optional[str] = None, 
+                  deadline: Optional[str] = None, completed: Optional[bool] = None,
+                  how_to_guide: Optional[str] = None, context_id: Optional[str] = None) -> Union[Dict[str, Any], Dict[str, str]]:
+    """
+    Update a todo's properties while preserving its subtasks, using SQLAlchemy.
+    """
+    session = SessionLocal()
+    todo = session.query(Todo).filter_by(id=id).first()
+    if not todo:
+        session.close()
+        return {"error": f"Todo with ID {id} not found"}
+    if title is not None:
+        todo.title = title
+    if description is not None:
+        todo.description = description
+    if deadline is not None:
+        todo.deadline = deadline
+    if completed is not None:
+        todo.completed = completed
+    if how_to_guide is not None:
+        todo.how_to_guide = how_to_guide
+    session.commit()
+    todo_dict = todo_to_dict(todo, session)
+    session.close()
+    return todo_dict
+
+def delete_todo(id: int, context_id: Optional[str] = None) -> Dict[str, Any]:
+    """
+    Delete a todo by ID (and its subtasks via cascade) using SQLAlchemy.
+    """
+    session = SessionLocal()
+    todo = session.query(Todo).filter_by(id=id).first()
+    if not todo:
+        session.close()
+        return {"error": f"Todo with ID {id} not found"}
+    session.delete(todo)
+    session.commit()
+    session.close()
+    return {"success": True, "message": f"Todo '{todo.title}' deleted"}
+
+def move_subtree(id: int, new_parent_id: Optional[int] = None, 
+                source_context_id: Optional[str] = None, target_context_id: Optional[str] = None) -> Union[Dict[str, Any], Dict[str, str]]:
+    """
+    Move a todo and all its subtasks to a new parent or to the root level, optionally between contexts, using SQLAlchemy.
+    """
+    session = SessionLocal()
+    todo = session.query(Todo).filter_by(id=id).first()
+    if not todo:
+        session.close()
+        return {"error": f"Todo with ID {id} not found"}
+    if new_parent_id == id:
+        session.close()
+        return {"error": "Cannot move a todo to be its own child"}
+    if target_context_id:
+        context = session.query(Context).filter_by(id=target_context_id).first()
+        if not context:
+            session.close()
+            return {"error": f"Target context with ID {target_context_id} not found"}
+        todo.context_id = target_context_id
+    if new_parent_id:
+        parent = session.query(Todo).filter_by(id=new_parent_id).first()
+        if not parent:
+            session.close()
+            return {"error": f"Parent todo with ID {new_parent_id} not found"}
+        # Prevent cycles
+        def is_descendant(child_id, ancestor_id):
+            if child_id == ancestor_id:
+                return True
+            child = session.query(Todo).filter_by(id=child_id).first()
+            if child and child.parent_id:
+                return is_descendant(child.parent_id, ancestor_id)
+            return False
+        if is_descendant(new_parent_id, id):
+            session.close()
+            return {"error": "Cannot move a todo to be a child of its own descendant"}
+        todo.parent_id = new_parent_id
     else:
-        result = add_subtask(todos_by_context[context_id], parent_id, new_todo)
-        if result:
-            save_todos()
-            return tree_to_dict(new_todo)
-        return error_dict(f"Parent todo with ID {parent_id} not found in context {context_id}")
+        todo.parent_id = None
+    session.commit()
+    todo_dict = todo_to_dict(todo, session)
+    session.close()
+    return todo_dict
 
 def add_subtask(todo_list: List[Node], parent_id: int, subtask: Node) -> bool:
     """Recursively search for a parent todo and add the subtask to it."""
@@ -297,63 +434,6 @@ def toggle_subtasks(subtasks: List[Node], completed: bool):
         for node in PreOrderIter(subtask):
             node.completed = completed
 
-def delete_todo(id: int, context_id: Optional[str] = None) -> Dict[str, Any]:
-    """
-    Delete a todo by ID, whether it's a root todo or a subtask.
-    
-    Args:
-        id: The ID of the todo to delete
-        context_id: If provided, only search in this context
-        
-    Returns:
-        Success or error message
-    """
-    if context_id:
-        err = get_context_or_error(context_id)
-        if err:
-            return err
-        # Try to delete from root level in this context
-        for i, todo in enumerate(todos_by_context[context_id]):
-            if todo.id == id:
-                removed = todos_by_context[context_id].pop(i)
-                save_todos()
-                return {"success": True, "message": f"Todo '{removed.title}' deleted"}
-        # If not found at root level, try to find and delete from subtasks
-        result = delete_subtask(todos_by_context[context_id], id)
-        if result:
-            save_todos()
-            return result
-        return error_dict(f"Todo with ID {id} not found in context {context_id}")
-    else:
-        for ctx_id, todos in todos_by_context.items():
-            for i, todo in enumerate(todos):
-                if todo.id == id:
-                    removed = todos.pop(i)
-                    save_todos()
-                    return {"success": True, "message": f"Todo '{removed.title}' deleted"}
-            result = delete_subtask(todos, id)
-            if result:
-                save_todos()
-                return result
-        return error_dict(f"Todo with ID {id} not found in any context")
-
-def delete_subtask(todo_list: List[Node], id: int) -> Optional[Dict[str, Any]]:
-    """Recursively search for and delete a subtask."""
-    for todo in todo_list:
-        if todo.children:
-            for i, subtask in enumerate(todo.children):
-                if subtask.id == id:
-                    removed = todo.children.pop(i)
-                    return {"success": True, "message": f"Subtask '{removed.title}' deleted"}
-            
-            # If not found in immediate subtasks, search deeper
-            for subtask in todo.children:
-                result = delete_subtask(subtask.children, id)
-                if result:
-                    return result
-    
-    return None
-
 def get_subtree(id: int, context_id: Optional[str] = None) -> Union[Dict[str, Any], Dict[str, str]]:
     """
     Get a specific todo and all its subtasks by ID.
@@ -381,127 +461,10 @@ def get_subtree(id: int, context_id: Optional[str] = None) -> Union[Dict[str, An
             return todo
     return deepcopy(tree_to_dict(todo))
 
-def update_subtree(id: int, title: Optional[str] = None, description: Optional[str] = None, 
-                  deadline: Optional[str] = None, completed: Optional[bool] = None,
-                  how_to_guide: Optional[str] = None, context_id: Optional[str] = None) -> Union[Dict[str, Any], Dict[str, str]]:
-    """
-    Update a todo's properties while preserving its subtasks.
-    
-    The description should be short and to the point. Use how_to_guide for detailed, step-by-step instructions or explanations in markdown format.
-    
-    Args:
-        id: The ID of the todo to update
-        title: New title (if provided)
-        description: Short summary (keep it brief)
-        deadline: New deadline (if provided)
-        completed: New completed status (if provided)
-        how_to_guide: New how-to guide in markdown (use for detailed instructions)
-        context_id: If provided, only search in this context
-        
-    Returns:
-        The updated todo or an error message
-    """
-    if context_id:
-        err = get_context_or_error(context_id)
-        if err:
-            return err
-        todo = get_todo_or_error(todos_by_context[context_id], id, context_id)
-        if isinstance(todo, dict):
-            return todo
-    else:
-        context_id = find_todo_context(id)
-        if not context_id:
-            return error_dict(f"Todo with ID {id} not found in any context")
-        todo = get_todo_or_error(todos_by_context[context_id], id, context_id)
-        if isinstance(todo, dict):
-            return todo
-    if title is not None:
-        todo.title = title
-    if description is not None:
-        todo.description = description
-    if deadline is not None:
-        todo.deadline = deadline
-    if completed is not None:
-        todo.completed = completed
-    if how_to_guide is not None:
-        todo.how_to_guide = how_to_guide
-    save_todos()
-    return tree_to_dict(todo)
-
 def find_parent_of_todo(todo_list: List[Node], id: int) -> Optional[Node]:
     """Find the parent of a todo by the todo's ID using anytree's .parent attribute."""
     node = find_todo(todo_list, id)
     return node.parent if node else None
-
-def move_subtree(id: int, new_parent_id: Optional[int] = None, 
-                source_context_id: Optional[str] = None, target_context_id: Optional[str] = None) -> Union[Dict[str, Any], Dict[str, str]]:
-    """
-    Move a todo and all its subtasks to a new parent or to the root level,
-    optionally moving between contexts.
-    
-    Args:
-        id: The ID of the todo subtree to move
-        new_parent_id: The ID of the new parent todo, or None to move to root level
-        source_context_id: If provided, only search in this context for the todo to move
-        target_context_id: If provided, move the todo to this context
-        
-    Returns:
-        The moved subtree or an error message
-    """
-    if source_context_id:
-        err = get_context_or_error(source_context_id)
-        if err:
-            return err
-    else:
-        source_context_id = find_todo_context(id)
-        if not source_context_id:
-            return error_dict(f"Todo with ID {id} not found in any context")
-    if target_context_id is None:
-        target_context_id = source_context_id
-    elif target_context_id not in todos_by_context:
-        return error_dict(f"Target context with ID {target_context_id} not found")
-    if new_parent_id == id:
-        return error_dict("Cannot move a todo to be its own child")
-    todo_to_move = get_todo_or_error(todos_by_context[source_context_id], id, source_context_id)
-    if isinstance(todo_to_move, dict):
-        return todo_to_move
-    if new_parent_id is not None:
-        new_parent = get_todo_or_error(todos_by_context[target_context_id], new_parent_id, target_context_id)
-        if isinstance(new_parent, dict):
-            return new_parent
-        if source_context_id == target_context_id:
-            current = new_parent
-            while current:
-                parent = find_parent_of_todo(todos_by_context[source_context_id], current.id)
-                if parent and parent.id == id:
-                    return error_dict("Cannot move a todo to be a child of its own descendant")
-                current = parent
-    current_parent = find_parent_of_todo(todos_by_context[source_context_id], id)
-    todo_copy = deepcopy(todo_to_move)
-    if current_parent:
-        current_parent.children = [st for st in current_parent.children if st.id != id]
-    else:
-        todos_by_context[source_context_id] = [t for t in todos_by_context[source_context_id] if t.id != id]
-    if new_parent_id is None:
-        todos_by_context[target_context_id].append(todo_copy)
-    else:
-        todo_copy.parent = new_parent
-    save_todos()
-    return tree_to_dict(todo_copy)
-
-def get_todos(context_id: str = default_context_id) -> List[Dict[str, Any]]:
-    """
-    Get all todos from a specific context.
-    
-    Args:
-        context_id: The context to get todos from
-        
-    Returns:
-        List of todos in the context or empty list if context not found
-    """
-    if context_id not in todos_by_context:
-        return []
-    return [tree_to_dict(todo) for todo in todos_by_context[context_id]]
 
 # --- Simplification Helpers ---
 def error_dict(msg: str) -> Dict[str, str]:

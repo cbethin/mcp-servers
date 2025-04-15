@@ -11,5 +11,6 @@ dependencies = [
     "anytree>=2.8.0",
     "pillow>=11.2.1",
     "matplotlib>=3.0.0",
-    "networkx>=2.0.0"
+    "networkx>=2.0.0",
+    "sqlalchemy>=2.0.0"
 ]
