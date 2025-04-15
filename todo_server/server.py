@@ -120,6 +120,7 @@ def todo_create(title: str, description: Optional[str] = None, deadline: Optiona
     Create a new todo item within a specific context.
     
     The description should be short and to the point. Use how_to_guide for detailed, step-by-step instructions or explanations in markdown format. Do not repeat information between the description, how_to_guide, and subtasks. If you provide a how_to_guide, do not create subtasks for the same steps covered in the guide—choose one approach for detailed steps. Only apply a how_to_guide to edge (leaf) todos that do not have subtasks; parent todos with subtasks should not have a how_to_guide.
+    The how_to_guide should include enough information to pickup the task without any additional context (so should include all the context necessary)
     
     Args:
         title: The title/name of the todo item (required)
