@@ -1,0 +1,9 @@
+# Saved scenes directory - contains user-specific scene configurations
+scenes/
+
+# Configuration files that may contain sensitive data
+config.json
+hue_config.json
+
+# Test files
+test_*.py

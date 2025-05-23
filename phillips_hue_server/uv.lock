@@ -197,12 +197,14 @@ source = { editable = "." }
 dependencies = [
     { name = "mcp", extra = ["cli"] },
     { name = "requests" },
+    { name = "urllib3" },
 ]
 
 [package.metadata]
 requires-dist = [
     { name = "mcp", extras = ["cli"], specifier = ">=1.6.0" },
     { name = "requests", specifier = ">=2.28.0" },
+    { name = "urllib3", specifier = ">=1.26.0" },
 ]
 
 [[package]]

@@ -5,32 +5,33 @@ import os
 import requests
 import logging
 from typing import Dict, List, Optional, Any, Union
+import urllib3
+
+# Suppress SSL warnings for self-signed certificates
+urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 logger = logging.getLogger("hue_api")
 
-# Get Hue Bridge configuration from environment variables
-HUE_BRIDGE_IP = os.environ.get('HUE_BRIDGE_IP')
-HUE_API_KEY = os.environ.get('HUE_API_KEY')
+# Import the new configuration system
+from .config import hue_config
 
 # Base URL for the Hue API
-def get_base_url() -> str:
-    """Get the base URL for the Hue API."""
-    if not HUE_BRIDGE_IP:
-        logger.warning("HUE_BRIDGE_IP environment variable not set.")
-        return ""
-    if not HUE_API_KEY:
-        logger.warning("HUE_API_KEY environment variable not set.")
-        return ""
-    return f"http://{HUE_BRIDGE_IP}/api/{HUE_API_KEY}"
+def get_base_url() -> Optional[str]:
+    """Get the base URL for the Hue API using configuration system."""
+    bridge = hue_config.get_primary_bridge()
+    if not bridge:
+        logger.warning("No Hue Bridge configured. Run setup workflow.")
+        return None
+    return f"http://{bridge['ip']}/api/{bridge['api_key']}"
 
 def test_connection() -> Dict[str, Any]:
     """Test the connection to the Hue Bridge."""
     base_url = get_base_url()
     if not base_url:
-        return {"success": False, "error": "Missing Hue Bridge configuration"}
+        return {"success": False, "error": "No Hue Bridge configured. Run setup workflow."}
     
     try:
-        response = requests.get(base_url)
+        response = requests.get(base_url, timeout=10)
         response.raise_for_status()
         return {"success": True, "data": response.json()}
     except requests.exceptions.RequestException as e:
@@ -41,10 +42,10 @@ def get_all_lights() -> Dict[str, Any]:
     """Get all lights connected to the Hue Bridge."""
     base_url = get_base_url()
     if not base_url:
-        return {"success": False, "error": "Missing Hue Bridge configuration"}
+        return {"success": False, "error": "No Hue Bridge configured. Run setup workflow."}
     
     try:
-        response = requests.get(f"{base_url}/lights")
+        response = requests.get(f"{base_url}/lights", timeout=10)
         response.raise_for_status()
         return {"success": True, "lights": response.json()}
     except requests.exceptions.RequestException as e:
@@ -55,13 +56,13 @@ def get_light_info(light_id: Union[str, int]) -> Dict[str, Any]:
     """Get information about a specific light."""
     base_url = get_base_url()
     if not base_url:
-        return {"success": False, "error": "Missing Hue Bridge configuration"}
+        return {"success": False, "error": "No Hue Bridge configured. Run setup workflow."}
     
     # Try to resolve light name to ID if needed
     resolved_id = parse_identifier(light_id, "lights")
     
     try:
-        response = requests.get(f"{base_url}/lights/{resolved_id}")
+        response = requests.get(f"{base_url}/lights/{resolved_id}", timeout=10)
         response.raise_for_status()
         return {"success": True, "light": response.json()}
     except requests.exceptions.RequestException as e:
@@ -89,7 +90,7 @@ def parse_identifier(identifier: Union[str, int], object_type: str) -> Union[str
     
     try:
         # Get all objects of the specified type
-        response = requests.get(f"{base_url}/{object_type}")
+        response = requests.get(f"{base_url}/{object_type}", timeout=10)
         response.raise_for_status()
         objects = response.json()
         
