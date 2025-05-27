@@ -52,7 +52,7 @@ command_runner = CommandRunner()
 # ============================================================================
 
 @mcp.async_tool()
-async def sandbox_create(source_path: str, session_name: str):
+async def sandbox_create(source_path: str, session_name: str, exclude: Optional[List[str]] = None):
     """
     Create a new sandbox session from a source directory.
     
@@ -66,12 +66,15 @@ async def sandbox_create(source_path: str, session_name: str):
     Args:
         source_path: Path to the source directory to sandbox
         session_name: Unique name for this sandbox session
+        exclude: Optional list of glob patterns to exclude from sandbox
+                (e.g., ["*.log", "node_modules/", "**/__pycache__"])
         
     Returns:
         Dict with session details or error message
         
     Example:
         sandbox_create("/home/user/my-project", "test_build")
+        sandbox_create("/home/user", "home_sandbox", exclude=["Downloads/", "*.mp4"])
     """
     logger.info(f"Creating sandbox '{session_name}' from {source_path}")
     
@@ -83,7 +86,7 @@ async def sandbox_create(source_path: str, session_name: str):
             yield "First-time setup: Building Docker image (2-3 minutes)..."
             sandbox_create._image_built = True
             
-        result = await sandbox_manager.create_sandbox_async(source_path, session_name)
+        result = await sandbox_manager.create_sandbox_async(source_path, session_name, exclude)
         logger.info(f"Successfully created sandbox '{session_name}'")
         
         # Yield success information as strings

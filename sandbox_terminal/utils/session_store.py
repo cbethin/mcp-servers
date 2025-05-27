@@ -26,6 +26,7 @@ class SessionMetadata:
         self.command_history: List[Dict[str, Any]] = []
         self.environment: Dict[str, str] = {}
         self.status = "active"
+        self.exclude_patterns: Optional[List[str]] = None
         
     def to_dict(self) -> Dict[str, Any]:
         """Convert to dictionary for serialization."""
@@ -39,7 +40,8 @@ class SessionMetadata:
             "working_dir": self.working_dir,
             "command_history": self.command_history,
             "environment": self.environment,
-            "status": self.status
+            "status": self.status,
+            "exclude_patterns": self.exclude_patterns
         }
     
     @classmethod
@@ -57,6 +59,7 @@ class SessionMetadata:
         session.command_history = data.get("command_history", [])
         session.environment = data.get("environment", {})
         session.status = data.get("status", "active")
+        session.exclude_patterns = data.get("exclude_patterns")
         return session
 
 

@@ -33,7 +33,7 @@ class SandboxManager:
         if self.docker_sandbox:
             self._cleanup_orphaned_containers()
             
-    def create_sandbox(self, source_path: str, session_name: str) -> Dict[str, Any]:
+    def create_sandbox(self, source_path: str, session_name: str, exclude: Optional[List[str]] = None) -> Dict[str, Any]:
         """Create a new sandbox session."""
         # Validate inputs
         source_path = Path(source_path).resolve()
@@ -54,10 +54,14 @@ class SandboxManager:
         try:
             # Create session
             session = self.session_store.create_session(session_name, str(source_path))
+            session.exclude_patterns = exclude
+            self.session_store.update_session(session)
             
             # Copy files to sandbox
             logger.info(f"Copying files from {source_path} to {session.sandbox_path}")
-            self._copy_directory(source_path, session.sandbox_path)
+            if exclude:
+                logger.info(f"Excluding patterns: {exclude}")
+            self._copy_directory(source_path, session.sandbox_path, exclude)
             
             # Check size limit
             sandbox_size = self._get_directory_size(session.sandbox_path)
@@ -279,7 +283,8 @@ class SandboxManager:
     async def create_sandbox_async(
         self,
         source_path: str,
-        session_name: str
+        session_name: str,
+        exclude: Optional[List[str]] = None
     ) -> Dict[str, Any]:
         """Create a new sandbox session asynchronously."""
         # Run the sync version in an executor to avoid blocking
@@ -288,7 +293,8 @@ class SandboxManager:
             None,
             self.create_sandbox,
             source_path,
-            session_name
+            session_name,
+            exclude
         )
         
     def get_file_changes(self, session_name: str) -> Dict[str, Any]:
@@ -329,7 +335,8 @@ class SandboxManager:
         
         # Copy original files again
         source_path = Path(session.source_path)
-        self._copy_directory(source_path, session.sandbox_path)
+        # Use stored exclude patterns from session
+        self._copy_directory(source_path, session.sandbox_path, session.exclude_patterns)
         
         # Reset file tracker
         if session_name in self.file_trackers:
@@ -346,7 +353,7 @@ class SandboxManager:
             "message": f"Sandbox '{session_name}' reset to original state"
         }
         
-    def _copy_directory(self, src: Path, dst: str) -> None:
+    def _copy_directory(self, src: Path, dst: str, exclude: Optional[List[str]] = None) -> None:
         """Copy a directory to sandbox location."""
         dst_path = Path(dst)
         
@@ -357,8 +364,67 @@ class SandboxManager:
         # Ensure parent directory exists
         dst_path.parent.mkdir(parents=True, exist_ok=True)
         
+        # Create ignore function if exclude patterns provided
+        ignore_func = None
+        if exclude:
+            import fnmatch
+            def ignore_patterns(directory, filenames):
+                """Function to determine which files to ignore during copy."""
+                ignored = set()
+                
+                # Calculate relative path of current directory from source
+                try:
+                    current_rel_path = Path(directory).relative_to(src)
+                except ValueError:
+                    current_rel_path = Path()
+                
+                for pattern in exclude:
+                    # Handle directory patterns (ending with /)
+                    if pattern.endswith('/'):
+                        dir_pattern = pattern.rstrip('/')
+                        # Check directory names
+                        for name in filenames:
+                            full_path = Path(directory) / name
+                            if full_path.is_dir() and fnmatch.fnmatch(name, dir_pattern):
+                                ignored.add(name)
+                    else:
+                        # Handle both files and directories for other patterns
+                        for name in filenames:
+                            full_path = Path(directory) / name
+                            
+                            # Build relative path from source
+                            if current_rel_path == Path():
+                                item_rel_path = name
+                            else:
+                                item_rel_path = str(current_rel_path / name)
+                            
+                            # Check against pattern
+                            if '**' in pattern:
+                                # Handle recursive patterns
+                                # For directories, check if pattern matches directory structure
+                                if full_path.is_dir():
+                                    # Check if this directory or its contents would match
+                                    # For example, **/__pycache__ should match any __pycache__ dir
+                                    pattern_parts = pattern.split('/')
+                                    if pattern_parts[0] == '**' and len(pattern_parts) > 1:
+                                        # Pattern like **/__pycache__
+                                        target_name = pattern_parts[1]
+                                        if fnmatch.fnmatch(name, target_name):
+                                            ignored.add(name)
+                                else:
+                                    # For files, use full relative path matching
+                                    if fnmatch.fnmatch(item_rel_path, pattern):
+                                        ignored.add(name)
+                            else:
+                                # Simple pattern matching
+                                if fnmatch.fnmatch(name, pattern):
+                                    ignored.add(name)
+                                    
+                return list(ignored)
+            ignore_func = ignore_patterns
+            
         # Use shutil for the copy
-        shutil.copytree(src, dst, symlinks=True, ignore_dangling_symlinks=True)
+        shutil.copytree(src, dst, symlinks=True, ignore_dangling_symlinks=True, ignore=ignore_func)
         
     def _get_directory_size(self, path: str) -> int:
         """Get total size of a directory."""
