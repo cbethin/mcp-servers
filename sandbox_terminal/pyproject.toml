@@ -1,0 +1,46 @@
+[project]
+name = "mcp-server-sandbox-terminal"
+version = "0.1.0"
+description = "A Model Context Protocol server for secure sandboxed terminal command execution"
+readme = "README.md"
+requires-python = ">=3.12"
+authors = [
+    {name = "Your Name"}
+]
+keywords = ["mcp", "terminal", "sandbox", "docker", "command-execution", "llm"]
+license = {text = "MIT"}
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.12",
+]
+dependencies = [
+    "mcp[cli]>=1.6.0",
+    "docker>=7.0.0",
+    "watchdog>=3.0.0",
+    "pyyaml>=6.0",
+    "aiofiles>=23.0",
+    "psutil>=5.9",
+]
+
+[project.scripts]
+mcp-server-sandbox-terminal = "server:mcp"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["utils"]
+
+[tool.hatch.build]
+exclude = [
+  "*.pyc",
+  "__pycache__",
+  ".git",
+  ".venv",
+  "sandboxes/",
+  "sessions/"
+]
