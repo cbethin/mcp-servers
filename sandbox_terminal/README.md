@@ -104,6 +104,74 @@ Add to your `claude_desktop_config.json`:
 }
 ```
 
+## Claude Code Configuration
+
+To use the Sandbox Terminal MCP server with Claude Code (claude.ai/code), follow these steps:
+
+### 1. Install Dependencies
+
+First, ensure you have installed the dependencies in the sandbox_terminal directory:
+
+```sh
+cd /path/to/mcp-servers/sandbox_terminal
+uv sync
+```
+
+### 2. Add the Server to Claude Code
+
+Add the server using the `claude mcp add` command with the Python interpreter from the virtual environment:
+
+```sh
+claude mcp add sandbox_terminal /path/to/mcp-servers/sandbox_terminal/.venv/bin/python /path/to/mcp-servers/sandbox_terminal/main.py
+```
+
+Alternatively, if you have the MCP CLI installed globally:
+
+```sh
+claude mcp add sandbox_terminal mcp run /path/to/mcp-servers/sandbox_terminal/main.py
+```
+
+### 3. Verify Installation
+
+Check that the server is installed by running:
+
+```sh
+claude mcp list
+```
+
+You should see `sandbox_terminal` in the list of installed servers.
+
+### 4. Using with Claude Code
+
+Once installed, the sandbox terminal tools will be available in Claude Code. You can ask Claude to:
+
+- Create sandboxes from your project directories
+- Execute commands safely without affecting your actual files
+- Test build processes and configurations
+- Experiment with different approaches before committing changes
+
+Example prompts for Claude Code:
+- "Create a sandbox of my current project and test the build process"
+- "Try different npm configurations in a sandbox without affecting my files"
+- "Test this shell script safely in an isolated environment"
+
+### 5. Updating the Server
+
+To update the server after making changes to the code, simply restart Claude Code or run:
+
+```sh
+claude mcp remove sandbox_terminal
+claude mcp add sandbox_terminal /path/to/mcp-servers/sandbox_terminal/.venv/bin/python /path/to/mcp-servers/sandbox_terminal/main.py
+```
+
+### 6. Removing the Server
+
+To remove the server from Claude Code:
+
+```sh
+claude mcp remove sandbox_terminal
+```
+
 ## Available Tools
 
 ### 1. sandbox_create(source_path, session_name)
