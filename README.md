@@ -1,14 +1,18 @@
 # MCP Servers Collection
 
-A collection of Model Context Protocol (MCP) servers that enable Claude and other LLMs to interact with external systems through tool calls.
+![Python](https://img.shields.io/badge/python-3.12+-blue) ![License](https://img.shields.io/badge/license-MIT-green) ![MCP](https://img.shields.io/badge/protocol-MCP-purple)
 
-## Overview
+A collection of production-ready [Model Context Protocol](https://modelcontextprotocol.io/) servers that give Claude (and other LLMs) real-world capabilities — smart home control, task management, and isolated code execution.
 
-This repository contains three MCP server implementations:
+## Servers
 
-1. **Phillips Hue Server** (`phillips_hue_server/`) - Control Philips Hue smart lighting
-2. **Task Server** (`todo_server/`) - Manage tasks with SQLite/SQLAlchemy storage  
-3. **Template Server** (`template/`) - Base template for creating new MCP servers
+| Server | Description | Stack |
+|---|---|---|
+| [`phillips_hue_server/`](#phillips-hue-server) | Control Philips Hue smart lighting via natural language | Python, FastMCP, Docker |
+| [`todo_server/`](#task-server) | Persistent hierarchical task management | Python, FastMCP, SQLite, SQLAlchemy |
+| [`node_sandbox_terminal/`](#node-sandbox-terminal) | Docker-isolated terminal sessions for safe code execution | TypeScript, Node.js, Docker |
+| [`sandbox_terminal/`](#sandbox-terminal) | Sandboxed directory sessions with shell command execution | Python, FastMCP, Docker |
+| [`template/`](#template-server) | Minimal base template for building new MCP servers | Python, FastMCP |
 
 ## What is MCP?
 
@@ -128,6 +132,28 @@ A comprehensive task management system with hierarchical task organization and c
 - `task_toggle_completion()` - Toggle task completion status
 - `task_move()` - Move tasks between parents/contexts
 
+### Node Sandbox Terminal
+
+A TypeScript MCP server that provides Docker-isolated terminal sessions — each sandbox runs in its own container with controlled folder access, command filtering, and resource limits.
+
+**Key Features:**
+- Docker-based isolation per session
+- Controlled folder mounting — specify exactly which directories are accessible
+- Command filtering to prevent dangerous operations
+- File read/write/change-tracking within sandboxes
+- CPU, memory, and process limits
+- Full TypeScript implementation
+
+### Sandbox Terminal
+
+A Python MCP server for sandboxed directory sessions with full shell command execution, safe for LLM-driven file system exploration.
+
+**Key Features:**
+- Isolated copies of directories — changes don't touch the host
+- Multiple independent sessions with persistent state
+- Shell command execution with resource limits
+- Working directory tracking per session
+
 ### Template Server
 
 A minimal starting point for creating new MCP servers.
@@ -231,7 +257,7 @@ server_name/
 
 ## License
 
-MIT License - See individual server directories for specific licensing information.
+MIT
 
 ## Contributing
 
